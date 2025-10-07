@@ -4,6 +4,10 @@ on:
   push:
     branches: [ main ]
 
+permissions: # 关键权限设置
+  releases: write # 显式授予Release写权限
+  contents: read  # 读取仓库内容权限
+
 jobs:
   publish-scripts:
     runs-on: ubuntu-latest
@@ -11,17 +15,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup GitHub CLI
-        run: |
-          # 官方安装方式 (比 apt 版本更新)
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list
-          sudo apt update && sudo apt install gh -y
+      - name: Install GitHub CLI
+        run: sudo apt update && sudo apt install gh -y
 
-      - name: Generate timestamp
+      - name: Generate timestamp version
         id: timestamp
         run: |
-          echo "version=$(date -u '+%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+          echo "version=$(date -u '+%Y%m%d%HM%S')" >> $GITHUB_OUTPUT
 
       - name: Create release
         env:
@@ -35,7 +35,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 处理含空格/特殊字符的文件名
-          find . -name '*.sh' -print0 | while IFS= read -r -d '' file; do
-            gh release upload ${{ steps.timestamp.outputs.version }} "$file"
-          done
+          # 处理特殊字符的文件名
+          while IFS= read -r -d '' file; do
+            echo "Uploading: $file"
+            gh release upload ${{ steps.timestamp.outputs.version }} "$file" || echo "Upload failed: $file"
+          done < <(find . -name '*.sh' -print0)
+        continue-on-error: true
