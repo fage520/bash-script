@@ -5,8 +5,7 @@ on:
     branches: [ main ]  # 仅在 main 分支有更新时触发
 
 permissions:
-  contents: read       # 允许读取仓库内容
-  releases: write      # 允许写入 Release
+  contents: write       # 允许读取和写入仓库内容（Release 相关操作需要这个）
 
 jobs:
   publish-scripts:
@@ -17,11 +16,11 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      # 步骤 2: 安装 GitHub CLI（gh 命令行工具）
+      # 步骤 2: 安装 GitHub CLI
       - name: 安装 GitHub CLI
         run: sudo apt-get update && sudo apt-get install -y gh
 
-      # 步骤 3: 生成时间戳版本号，保证每次发布的 tag 唯一
+      # 步骤 3: 生成时间戳版本号
       - name: 生成时间戳版本号
         id: timestamp
         run: |
@@ -33,26 +32,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${{ steps.timestamp.outputs.version }}"
-          # 检查 Release 是否已存在，存在则先删除
           if gh release view "$version" &>/dev/null; then
             gh release delete "$version" -y
           fi
-          # 创建新的 Release
           gh release create "$version" \
             --title "Shell Scripts $version" \
             --notes "自动化发布于 $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-      # 步骤 5: 上传所有 sh 脚本到 Release，保证有可执行权限
+      # 步骤 5: 上传 shell 脚本到 Release
       - name: 上传 shell 脚本到 Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${{ steps.timestamp.outputs.version }}"
-          # 查找项目根目录及所有子目录下的 .sh 脚本（排除 .git/.github 目录），并上传
           find . -type f -name "*.sh" \
             -not -path "./.git/*" -not -path "./.github/*" -print0 | while IFS= read -r -d '' file; do
             echo "上传: '$file'"
-            chmod +x "$file"  # 赋予可执行权限
+            chmod +x "$file"
             gh release upload "$version" "$file" --clobber
           done
         shell: bash
