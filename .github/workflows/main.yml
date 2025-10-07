@@ -5,7 +5,7 @@ on:
     branches: [ main ]  # 仅在 main 分支有更新时触发
 
 permissions:
-  contents: write       # 允许读取和写入仓库内容（Release 相关操作需要这个）
+  contents: write       # 发布 Release 只需 contents: write 权限
 
 jobs:
   publish-scripts:
@@ -20,35 +20,48 @@ jobs:
       - name: 安装 GitHub CLI
         run: sudo apt-get update && sudo apt-get install -y gh
 
-      # 步骤 3: 生成时间戳版本号
-      - name: 生成时间戳版本号
-        id: timestamp
+      # 步骤 3: 设置固定 Release tag 名称
+      - name: 设置 Release tag
+        id: vars
         run: |
-          echo "version=$(date -u '+%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+          echo "tag=v1.0.0" >> $GITHUB_OUTPUT
 
-      # 步骤 4: 创建 Release（如已存在则先删除，再创建）
+      # 步骤 4: 删除已存在的相同 tag/release
+      - name: 检查并删除旧的 Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.vars.outputs.tag }}"
+          # 如果 Release 存在则删除
+          if gh release view "$tag" &>/dev/null; then
+            gh release delete "$tag" -y
+          fi
+          # 如果 tag 存在则删除
+          if git tag | grep -qx "$tag"; then
+            git push --delete origin "$tag" || true
+            git tag -d "$tag" || true
+          fi
+
+      # 步骤 5: 创建新的 Release
       - name: 创建 Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${{ steps.timestamp.outputs.version }}"
-          if gh release view "$version" &>/dev/null; then
-            gh release delete "$version" -y
-          fi
-          gh release create "$version" \
-            --title "Shell Scripts $version" \
-            --notes "自动化发布于 $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          tag="${{ steps.vars.outputs.tag }}"
+          gh release create "$tag" \
+            --title "Shell Scripts $tag" \
+            --notes "自动化覆盖固定版本 Release: $tag"
 
-      # 步骤 5: 上传 shell 脚本到 Release
+      # 步骤 6: 上传 shell 脚本到 Release
       - name: 上传 shell 脚本到 Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${{ steps.timestamp.outputs.version }}"
+          tag="${{ steps.vars.outputs.tag }}"
           find . -type f -name "*.sh" \
             -not -path "./.git/*" -not -path "./.github/*" -print0 | while IFS= read -r -d '' file; do
             echo "上传: '$file'"
             chmod +x "$file"
-            gh release upload "$version" "$file" --clobber
+            gh release upload "$tag" "$file" --clobber
           done
         shell: bash
