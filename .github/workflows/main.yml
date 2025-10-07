@@ -4,40 +4,45 @@ on:
   push:
     branches: [ main ]
 
-permissions: # 关键权限设置
-  releases: write # 显式授予Release写权限
-  contents: read  # 读取仓库内容权限
-
 jobs:
   publish-scripts:
+    # 权限设置需要放在job级别
+    permissions:
+      contents: read
+      releases: write  # Release权限必须显式声明
+    
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install GitHub CLI
-        run: sudo apt update && sudo apt install gh -y
-
+        run: |
+          # 使用官方安装脚本确保最新版
+          curl -LO https://github.com/cli/cli/releases/latest/download/gh_1.0.0_linux_amd64.deb
+          sudo dpkg -i gh_1.0.0_linux_amd64.deb
+          
       - name: Generate timestamp version
         id: timestamp
         run: |
-          echo "version=$(date -u '+%Y%m%d%HM%S')" >> $GITHUB_OUTPUT
+          echo "version=$(date -u '+%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create ${{ steps.timestamp.outputs.version }} \
-            --title "Scripts ${{ steps.timestamp.outputs.version }}" \
-            --notes "Automated shell script release"
-
+            --title "Shell Scripts ${{ steps.timestamp.outputs.version }}" \
+            --notes "Automated release at $(date)" \
+            --notes-start-tag ""
+          
       - name: Upload scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 处理特殊字符的文件名
-          while IFS= read -r -d '' file; do
-            echo "Uploading: $file"
-            gh release upload ${{ steps.timestamp.outputs.version }} "$file" || echo "Upload failed: $file"
-          done < <(find . -name '*.sh' -print0)
-        continue-on-error: true
+          # 更健壮的文件处理方式
+          find . -name '*.sh' -print0 | while IFS= read -r -d $'\0' file; do
+            echo "Uploading: '$file'"
+            gh release upload "$version" "$file" --clobber
+          done
+        shell: bash
