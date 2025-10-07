@@ -4,7 +4,7 @@
 
 ## 使用方法
 ```bash
-sudo bash -c "$(curl -fsSL https://github.com/fage520/bash-script/blob/main/debian-mirror-script.sh)"
+sudo bash -c "$(curl -fsSL https://github.com/fage520/bash-script/releases/download/v1.0.0/debian-mirror-script.sh)"
 # 代理链接
-sudo bash -c "$(curl -fsSL https://xget.xi-xu.me/gh/fage520/bash-script/raw/refs/heads/main/debian-mirror-script.sh)"
+sudo bash -c "$(curl -fsSL https://xget.xi-xu.me/gh/fage520/bash-script/releases/download/v1.0.0/debian-mirror-script.sh)"
 ```
